@@ -34,7 +34,10 @@ class QAReportAgent:
                 lines.append(f"  - {item['release_id']}: task ứng viên {tasks}; {item['smoke_test']} {item['regression']}")
             lines.append("")
         else:
-            lines += ["- CHƯA THỂ XÁC MINH: chưa lấy được dữ liệu Telegram hoặc chưa có thông báo build đã xác minh.", ""]
+            if any("Telegram" in blocker for blocker in (blockers or [])):
+                lines += ["- CHƯA THỂ XÁC MINH: chưa lấy được dữ liệu Telegram.", ""]
+            else:
+                lines += ["- Không có thông báo build/release mới trong lần chạy này.", ""]
         def section(title: str, subset: list[Card]) -> None:
             lines.extend([f"## {title}"])
             if not subset:
@@ -71,4 +74,3 @@ class QAReportAgent:
         (self.output_dir / "latest.md").write_text(markdown, encoding="utf-8")
         (self.output_dir / "latest.json").write_text(encoded, encoding="utf-8")
         (self.output_dir / f"{payload['date']}.md").write_text(markdown, encoding="utf-8")
-

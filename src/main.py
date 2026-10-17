@@ -28,6 +28,11 @@ async def run() -> int:
         logging.warning("Product Hub collection unavailable (%s)", type(exc).__name__)
     try:
         releases = await TelegramReleaseAgent().collect()
+        all_release_ids = {r.release_id for r in releases}
+        previous = history.previous()
+        processed_ids = set((previous or {}).get("processed_release_ids", []))
+        processed_ids.update(r.get("release_id") for r in (previous or {}).get("releases", []))
+        releases = [r for r in releases if r.release_id not in processed_ids]
         logging.info("Telegram read completed: %d release messages", len(releases))
     except Exception as exc:
         blockers.append(str(exc) if isinstance(exc, TelegramUnavailable) else f"CHƯA THỂ XÁC MINH Telegram: {type(exc).__name__}")
@@ -38,6 +43,7 @@ async def run() -> int:
                {"comparison": "skipped", "reason": "one or more source integrations are unavailable"})
     # Do not overwrite history with an empty/partial snapshot when collection failed.
     md, payload = report.render(cards, releases, today, blockers, changes)
+    payload["processed_release_ids"] = sorted(processed_ids | all_release_ids) if "all_release_ids" in locals() else sorted(processed_ids)
     report.write(md, payload)
     if not blockers:
         history.save(payload["date"], payload)
@@ -50,4 +56,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

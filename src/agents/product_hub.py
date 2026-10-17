@@ -1,29 +1,64 @@
-"""Read-only Playwright collector. Selectors are configurable and fail closed."""
+"""Read-only Product Hub collector using Playwright and fail-closed field checks."""
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 from typing import Any
 
-from models.schemas import Card
+from models.schemas import Card, Comment
 
 
 class ProductHubUnavailable(RuntimeError):
     pass
 
 
+def _column_status(ancestor_texts: list[str]) -> str | None:
+    """Find the nearest ancestor containing exactly one watched column heading."""
+    for text in ancestor_texts:
+        present = [status for status in ("Ready for QA", "Verifying") if re.search(rf"(?m)^\s*{re.escape(status)}\s*$", text)]
+        if len(present) == 1:
+            return present[0]
+    return None
+
+
+def _section(text: str, name: str, following: tuple[str, ...]) -> str:
+    lines = text.splitlines()
+    start = next((i for i, line in enumerate(lines) if line.strip().casefold() == name.casefold()), None)
+    if start is None:
+        return ""
+    end = next((i for i in range(start + 1, len(lines))
+                if lines[i].strip().casefold() in {x.casefold() for x in following}), len(lines))
+    return "\n".join(line.strip() for line in lines[start + 1:end] if line.strip()).strip()
+
+
 class ProductHubAgent:
     TARGET_STATUSES = ("Ready for QA", "Verifying")
+    TASK_ID = re.compile(r"^VT-[A-Z0-9]+-\d+\b")
 
     def __init__(self, url: str | None = None, storage_state: str | None = None,
                  card_selector: str | None = None, column_selector: str | None = None,
                  qa_selector: str | None = None, assignee: str = "Chin") -> None:
         self.url = url or os.getenv("PRODUCT_HUB_URL", "https://product-hub.vuatho.com/board")
         self.storage_state = storage_state or os.getenv("PRODUCT_HUB_STORAGE_STATE")
-        self.card_selector = card_selector or os.getenv("PRODUCT_HUB_CARD_SELECTOR", "[data-card-id]")
-        self.column_selector = column_selector or os.getenv("PRODUCT_HUB_COLUMN_SELECTOR", "[data-column-name]")
-        self.qa_selector = qa_selector or os.getenv("PRODUCT_HUB_QA_FIELD_SELECTOR", '[data-field="QA"]')
+        self.card_selector = card_selector or os.getenv("PRODUCT_HUB_CARD_SELECTOR", "button")
+        self.column_selector = column_selector or os.getenv("PRODUCT_HUB_COLUMN_SELECTOR", "")
+        self.qa_selector = qa_selector or os.getenv("PRODUCT_HUB_QA_FIELD_SELECTOR", '[role="combobox"][aria-label="QA"]')
         self.assignee = assignee
+
+    async def _read_field(self, page: Any, label: str) -> str:
+        selectors = [f'[aria-label="{label}"]', f'[data-field="{label}"]']
+        if label == "QA":
+            selectors.insert(0, self.qa_selector)
+        for selector in dict.fromkeys(selectors):
+            locator = page.locator(selector)
+            if await locator.count():
+                value = (await locator.first.inner_text()).strip()
+                if value:
+                    return value
+        # Product Hub exposes Priority/Status/QA as named comboboxes in its UI.
+        combo = page.get_by_role("combobox", name=label, exact=True)
+        return (await combo.first.inner_text()).strip() if await combo.count() else ""
 
     async def collect(self) -> list[Card]:
         if not self.storage_state or not Path(self.storage_state).is_file():
@@ -40,7 +75,9 @@ class ProductHubAgent:
             page = await context.new_page()
             try:
                 await page.goto(self.url, wait_until="domcontentloaded", timeout=45_000)
-                # Load lazy columns/cards by scrolling the board and page until no growth.
+                if "login" in page.url.casefold() or "sign-in" in page.url.casefold():
+                    raise ProductHubUnavailable("CHƯA THỂ XÁC MINH: phiên Product Hub hết hạn hoặc chưa đăng nhập.")
+                # Repeatedly scroll the page and horizontally scroll board lanes to reveal lazy cards.
                 previous = -1
                 for _ in range(12):
                     count = await page.locator(self.card_selector).count()
@@ -48,32 +85,71 @@ class ProductHubAgent:
                         break
                     previous = count
                     await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-                    await page.wait_for_timeout(500)
-                    await page.evaluate("document.querySelectorAll('*').forEach(e => { if(e.scrollWidth > e.clientWidth) e.scrollLeft = e.scrollWidth })")
-                columns = page.locator(self.column_selector)
-                if await columns.count() == 0:
-                    raise ProductHubUnavailable("CHƯA THỂ XÁC MINH: không nhận diện được cột theo selector đã cấu hình.")
-                for col in await columns.all():
-                    label = (await col.get_attribute("data-column-name") or await col.inner_text()).strip()
-                    status = next((s for s in self.TARGET_STATUSES if s.casefold() in label.casefold()), None)
-                    if status is None:
-                        continue
-                    for locator in await col.locator(self.card_selector).all():
-                        attrs: dict[str, Any] = await locator.evaluate("e => ({...e.dataset})")
-                        task_id = str(attrs.get("cardId") or attrs.get("id") or "").strip()
-                        title = (await locator.inner_text()).strip().splitlines()[0]
-                        qa_node = locator.locator(self.qa_selector)
-                        qa = (await qa_node.inner_text()).strip() if await qa_node.count() else ""
-                        # Exact account match only; no fallback to reporter or assignee fields.
-                        if qa != self.assignee or not task_id:
+                    await page.evaluate("document.querySelectorAll('*').forEach(e => { if (e.scrollWidth > e.clientWidth + 8) e.scrollLeft = e.scrollWidth })")
+                    await page.wait_for_timeout(250)
+
+                candidates = []
+                if self.column_selector:
+                    columns = page.locator(self.column_selector)
+                    if not await columns.count():
+                        raise ProductHubUnavailable("CHƯA THỂ XÁC MINH: selector cột không khớp Product Hub.")
+                    for col in await columns.all():
+                        label = (await col.get_attribute("data-column-name") or await col.inner_text()).strip()
+                        status = next((s for s in self.TARGET_STATUSES if re.search(rf"\b{re.escape(s)}\b", label, re.I)), None)
+                        if status:
+                            candidates.extend((item, status) for item in await col.locator(self.card_selector).all())
+                else:
+                    for item in await page.locator(self.card_selector).all():
+                        label = (await item.inner_text()).strip()
+                        if not self.TASK_ID.match(label):
                             continue
-                        href = await locator.get_attribute("href")
-                        url = href if href and href.startswith("http") else self.url.rstrip("/") + "/" + (href or task_id).lstrip("/")
-                        description = str(attrs.get("description", "")).strip()
-                        priority = attrs.get("priority")
-                        found[task_id] = Card(task_id, title, url, status, qa, priority=priority,
-                                              description=description, build=attrs.get("build"))
+                        ancestors = await item.evaluate("""e => { const a=[]; for(let n=e.parentElement;n;n=n.parentElement){a.push(n.innerText||''); if(n===document.body)break;} return a; }""")
+                        status = _column_status(ancestors)
+                        if status:
+                            candidates.append((item, status))
+                if not candidates:
+                    raise ProductHubUnavailable("CHƯA THỂ XÁC MINH: không tìm thấy card trong hai cột cần theo dõi; kiểm tra selector hoặc quyền truy cập.")
+
+                seen: set[str] = set()
+                for item, status in candidates:
+                    label = (await item.inner_text()).strip()
+                    id_match = self.TASK_ID.match(label)
+                    if not id_match:
+                        continue
+                    task_id = id_match.group(0)
+                    if task_id in seen:
+                        continue
+                    seen.add(task_id)
+                    title = next((line.strip() for line in label.splitlines() if line.strip() and not line.strip().startswith(task_id)), task_id)
+                    try:
+                        await item.click(timeout=10_000)
+                        title_node = page.locator("#sheet-title")
+                        await title_node.wait_for(state="visible", timeout=10_000)
+                        detail_text = await title_node.evaluate("""e => { for(let n=e;n;n=n.parentElement){const t=n.innerText||''; if(t.includes('PEOPLE')&&t.includes('DESCRIPTION')) return t;} return ''; }""")
+                        if not detail_text:
+                            raise ProductHubUnavailable(f"CHƯA THỂ XÁC MINH {task_id}: không đọc được phần chi tiết card.")
+                        qa = await self._read_field(page, "QA")
+                        if not qa:
+                            raise ProductHubUnavailable(f"CHƯA THỂ XÁC MINH {task_id}: không đọc được trường QA riêng.")
+                        if qa == self.assignee:
+                            priority = await self._read_field(page, "Priority") or None
+                            detail_status = await self._read_field(page, "Status") or status
+                            actual_title = (await title_node.inner_text()).strip()
+                            description = _section(detail_text, "DESCRIPTION", ("ACCEPTANCE CRITERIA", "REFERENCES", "EVIDENCE", "IMPLEMENTATION", "FIX ATTEMPTS", "ACTIVITY", "PEOPLE"))
+                            criteria_text = _section(detail_text, "ACCEPTANCE CRITERIA", ("REFERENCES", "EVIDENCE", "IMPLEMENTATION", "FIX ATTEMPTS", "ACTIVITY", "PEOPLE"))
+                            criteria = [re.sub(r"^\d+[.)]\s*", "", x).strip() for x in criteria_text.splitlines() if x.strip()]
+                            comments_text = _section(detail_text, "COMMENTS", ("DESCRIPTION", "ACCEPTANCE CRITERIA", "REFERENCES"))
+                            comments = [Comment(author="", body=x) for x in comments_text.splitlines() if x.strip() and x.strip() != "Comment"]
+                            project = await self._read_field(page, "Project") or None
+                            url = page.url if "feature=" in page.url or "bug=" in page.url else f"{self.url.split('?')[0]}?feature={task_id}"
+                            found[task_id] = Card(task_id, actual_title or title, url, detail_status, qa,
+                                                  priority=priority, project=project, description=description,
+                                                  acceptance_criteria=criteria, comments=comments)
+                    finally:
+                        close = page.get_by_role("button", name="Đóng", exact=True)
+                        if await close.count():
+                            await close.first.click()
+                return list(found.values())
             finally:
                 await context.close()
                 await browser.close()
-        return list(found.values())

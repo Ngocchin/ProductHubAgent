@@ -14,7 +14,7 @@ Install Python 3.12, then install the project with `pip install -e '.[test]'`. I
 
 Open **Settings → Secrets and variables → Actions** in the private repository.
 
-Repository secrets (never commit their values): `PRODUCT_HUB_STORAGE_STATE` (the JSON storage-state document), `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, `TELEGRAM_SESSION`, `TELEGRAM_CHAT_ID`. Variables: `PRODUCT_HUB_URL`, `TELEGRAM_CHAT_TITLE`.
+Repository secrets (never commit their values): `PRODUCT_HUB_STORAGE_STATE` (the JSON storage-state document), `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, `TELEGRAM_SESSION`. Repository variables: `PRODUCT_HUB_URL`, `TELEGRAM_CHAT_TITLE`, `TELEGRAM_CHAT_ID`. The currently open, verified `[DEV] VuaTho Mobile` chat is `-1002593712725`.
 
 The daily workflow starts at 07:30 Vietnam time (00:30 UTC), supports **Actions → Daily QA report → Run workflow**, retries collection up to three times, and commits generated reports plus `reports/history.json`. GitHub scheduler timing is not guaranteed to finish before 08:00.
 

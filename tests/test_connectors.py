@@ -11,7 +11,7 @@ async def test_product_hub_fails_closed_without_login_state(tmp_path):
 
 
 @pytest.mark.asyncio
-async def test_telegram_requires_verified_chat_id():
-    agent = TelegramReleaseAgent(api_id="1", api_hash="hash", session="session", chat_id=None)
-    with pytest.raises(TelegramUnavailable, match="TELEGRAM_CHAT_ID"):
+async def test_telegram_requires_credentials():
+    agent = TelegramReleaseAgent(chat_id=-1002593712725)
+    with pytest.raises(TelegramUnavailable, match="credentials"):
         await agent.collect()

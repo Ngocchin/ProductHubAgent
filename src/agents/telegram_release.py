@@ -20,7 +20,7 @@ class TelegramReleaseAgent:
         self.api_id = api_id or os.getenv("TELEGRAM_API_ID")
         self.api_hash = api_hash or os.getenv("TELEGRAM_API_HASH")
         self.session = session or os.getenv("TELEGRAM_SESSION")
-        self.chat_id = chat_id if chat_id is not None else (int(os.environ["TELEGRAM_CHAT_ID"]) if os.getenv("TELEGRAM_CHAT_ID") else None)
+        self.chat_id = chat_id if chat_id is not None else int(os.getenv("TELEGRAM_CHAT_ID", "-1002593712725"))
         self.chat_title = chat_title or os.getenv("TELEGRAM_CHAT_TITLE", "[DEV] VuaTho Mobile")
 
     async def collect(self, limit: int = 200) -> list[Release]:
@@ -50,7 +50,8 @@ class TelegramReleaseAgent:
                     continue
                 date = (msg.date or datetime.now(timezone.utc)).isoformat()
                 rid = hashlib.sha256(f"{self.chat_id}:{msg.id}".encode()).hexdigest()
-                version = re.search(r"\b(?:version|ver|phiên bản)\s*[:#-]?\s*v?([\d]+(?:\.[\d]+){1,3})", text, re.I)
+                version = (re.search(r"\b(?:version|ver|phiên bản)\s*[:#-]?\s*v?([\d]+(?:\.[\d]+){1,3})", text, re.I)
+                           or re.search(r"\[\s*Vua\s+Tho\s+App\s+v?([\d]+(?:\.[\d]+){1,3})\s*\]", text, re.I))
                 build = re.search(r"\bbuild\s*[:#-]?\s*([\w.-]+)", text, re.I)
                 platform = re.search(r"\b(android|ios|iOS)\b", text, re.I)
                 results.append(Release(rid, self.chat_id, title, msg.id, date, text,
@@ -61,4 +62,3 @@ class TelegramReleaseAgent:
             return list(reversed(results))
         finally:
             await client.disconnect()
-
