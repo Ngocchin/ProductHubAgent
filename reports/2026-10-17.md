@@ -3,7 +3,7 @@
 > Thu thập theo chế độ chỉ đọc. Checklist là đề xuất; chưa có test nào được đánh dấu PASS.
 
 ## A. Build mới từ Telegram
-- Không có thông báo build/release mới trong lần chạy này.
+- CHƯA THỂ XÁC MINH: chưa lấy được dữ liệu Telegram.
 
 ## B. Task đang Ready for QA
 - Không có card đã xác minh trong lần chạy này.
