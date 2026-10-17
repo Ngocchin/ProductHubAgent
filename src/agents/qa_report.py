@@ -34,7 +34,7 @@ class QAReportAgent:
                 lines.append(f"  - {item['release_id']}: task ứng viên {tasks}; {item['smoke_test']} {item['regression']}")
             lines.append("")
         else:
-            if any("Telegram" in blocker for blocker in (blockers or [])):
+            if any("telegram" in blocker.casefold() for blocker in (blockers or [])):
                 lines += ["- CHƯA THỂ XÁC MINH: chưa lấy được dữ liệu Telegram.", ""]
             else:
                 lines += ["- Không có thông báo build/release mới trong lần chạy này.", ""]

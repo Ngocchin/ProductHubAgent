@@ -13,3 +13,12 @@ def test_report_writes_daily_latest_and_json(tmp_path):
     assert "Retest" in md
     assert json.loads((tmp_path / "latest.json").read_text(encoding="utf-8"))["cards"][0]["task_id"] == "VT-10"
     assert (tmp_path / "2026-10-17.md").exists()
+
+
+def test_report_does_not_claim_no_release_when_telegram_collection_failed():
+    md, _ = QAReportAgent().render(
+        [], [], date(2026, 10, 17),
+        ["CHƯA THỂ XÁC MINH: cần MTProto credentials và TELEGRAM_CHAT_ID đã xác minh."],
+    )
+    assert "CHƯA THỂ XÁC MINH: chưa lấy được dữ liệu Telegram." in md
+    assert "Không có thông báo build/release mới" not in md
