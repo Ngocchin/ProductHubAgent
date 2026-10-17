@@ -20,6 +20,8 @@ async def run() -> int:
     history = HistoryStore(os.getenv("HISTORY_PATH", "reports/history.json"))
     blockers: list[str] = []
     cards, releases = [], []
+    processed_ids: set[str] = set()
+    all_release_ids: set[str] = set()
     try:
         cards = await ProductHubAgent().collect()
         logging.info("Product Hub read completed: %d eligible cards", len(cards))
@@ -43,7 +45,7 @@ async def run() -> int:
                {"comparison": "skipped", "reason": "one or more source integrations are unavailable"})
     # Do not overwrite history with an empty/partial snapshot when collection failed.
     md, payload = report.render(cards, releases, today, blockers, changes)
-    payload["processed_release_ids"] = sorted(processed_ids | all_release_ids) if "all_release_ids" in locals() else sorted(processed_ids)
+    payload["processed_release_ids"] = sorted(processed_ids | all_release_ids)
     report.write(md, payload)
     if not blockers:
         history.save(payload["date"], payload)

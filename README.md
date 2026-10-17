@@ -20,7 +20,13 @@ The daily workflow starts at 07:30 Vietnam time (00:30 UTC), supports **Actions 
 
 ## Authentication setup status
 
-Product Hub requires an authorized read-only account. The workflow materializes the JSON browser `storage_state` from a GitHub secret into an ignored temporary file; the secret must be obtained through a trusted local login flow. Telegram requires an authorized MTProto session and the exact chat ID. Never send OTP, password, session, or API hash in chat, reports, or logs. This initial delivery does not include a Windows GUI enrollment utility; secure session enrollment and protected runner provisioning remain production setup work.
+Product Hub requires an authorized read-only account. The workflow materializes the JSON browser `storage_state` from a GitHub secret into an ignored temporary file. Telegram requires an authorized MTProto session and the exact chat ID. Never send OTP, password, session, or API hash in chat, reports, or logs. The Windows wizard handles local session enrollment; a person must still paste the copied values into GitHub's Secret editor because the connected GitHub API cannot create repository secrets.
+
+## Windows setup wizard
+
+The `Build Windows setup wizard` workflow packages a click-to-run `VuaThoQASetup.exe` artifact. In GitHub, open **Actions → Build Windows setup wizard → Run workflow**, then download the `VuaThoQASetup-Windows` artifact from that run and open the `.exe` inside its ZIP. The wizard opens Chrome for a user-driven Product Hub login, captures the browser state in memory, and handles Telegram OTP/2FA only inside the local window. It verifies Telegram chat `-1002593712725` and provides separate copy buttons for the GitHub Secrets. It does not write credentials to disk or logs.
+
+After setup, open **Settings → Secrets and variables → Actions** and add secrets `PRODUCT_HUB_STORAGE_STATE`, `TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, and `TELEGRAM_SESSION`. Add repository variable `TELEGRAM_CHAT_ID=-1002593712725`. Then open **Actions → Daily QA report → Run workflow**.
 
 ## Repository contents
 
