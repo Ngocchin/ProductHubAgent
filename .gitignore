@@ -1,0 +1,13 @@
+.env
+.venv/
+__pycache__/
+.pytest_cache/
+*.session*
+playwright/.auth/
+state/*.sqlite*
+state/*.json
+reports/*
+!reports/.gitkeep
+!reports/latest.md
+!reports/latest.json
+!reports/history.json
