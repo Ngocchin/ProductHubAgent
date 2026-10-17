@@ -37,7 +37,13 @@ class TelegramReleaseAgent:
         try:
             if not await client.is_user_authorized():
                 raise TelegramUnavailable("Phiên Telegram chưa được cấp quyền; hoàn tất đăng nhập cục bộ an toàn.")
-            entity = await client.get_entity(self.chat_id)
+            entity = None
+            async for dialog in client.iter_dialogs():
+                if dialog.id == self.chat_id:
+                    entity = dialog.entity
+                    break
+            if entity is None:
+                raise TelegramUnavailable("Chat ID chưa có trong danh sách cuộc trò chuyện được tài khoản cấp quyền.")
             title = getattr(entity, "title", None) or getattr(entity, "username", None) or str(self.chat_id)
             if get_peer_id(entity) != self.chat_id:
                 raise TelegramUnavailable("Chat ID trả về không khớp cấu hình.")
@@ -54,11 +60,14 @@ class TelegramReleaseAgent:
                            or re.search(r"\[\s*Vua\s+Tho\s+App\s+v?([\d]+(?:\.[\d]+){1,3})\s*\]", text, re.I))
                 build = re.search(r"\bbuild\s*[:#-]?\s*([\w.-]+)", text, re.I)
                 platform = re.search(r"\b(android|ios|iOS)\b", text, re.I)
+                internal_chat_id = str(abs(self.chat_id))
+                if self.chat_id < 0 and internal_chat_id.startswith("100"):
+                    internal_chat_id = internal_chat_id[3:]
                 results.append(Release(rid, self.chat_id, title, msg.id, date, text,
                                        version.group(1) if version else None,
                                        build.group(1) if build else None,
                                        platform.group(1) if platform else None,
-                                       source_url=f"https://t.me/c/{str(abs(self.chat_id))}/{msg.id}"))
+                                       source_url=f"https://t.me/c/{internal_chat_id}/{msg.id}"))
             return list(reversed(results))
         finally:
             await client.disconnect()

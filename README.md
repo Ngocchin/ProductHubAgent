@@ -4,7 +4,7 @@ Read-only daily QA collection and reporting for Product Hub and Telegram. Python
 
 ## Current scope and safety
 
-The project contains the reporting, deterministic QA checklist fallback, SQLite history, CI, scheduled workflow, and read-only connector implementations. It does not claim live Product Hub or Telegram access until a valid logged-in browser state and a verified Telegram chat ID are configured. The Product Hub collector uses configurable DOM selectors and will fail closed if it cannot identify board columns. It never changes card state or posts comments/messages. AI calls are disabled by default; no internal company data is sent to an external model.
+The project contains the reporting, deterministic QA checklist fallback, JSON history, CI, scheduled workflow, and read-only connector implementations. It does not claim live Product Hub or Telegram access until a valid logged-in browser state and authorized MTProto session are configured. The Product Hub collector scans visible board columns and fails closed if it cannot identify fields. It never changes card state or posts comments/messages. AI calls are disabled by default; no internal company data is sent to an external model.
 
 ## Local development
 

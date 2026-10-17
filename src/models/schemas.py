@@ -26,6 +26,7 @@ class Card:
     priority: str | None = None
     project: str | None = None
     module: str | None = None
+    area: str | None = None
     description: str = ""
     acceptance_criteria: list[str] = field(default_factory=list)
     comments: list[Comment] = field(default_factory=list)

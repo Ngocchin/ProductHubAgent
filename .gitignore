@@ -11,3 +11,5 @@ reports/*
 !reports/latest.md
 !reports/latest.json
 !reports/history.json
+!reports/*.md
+!reports/*.json

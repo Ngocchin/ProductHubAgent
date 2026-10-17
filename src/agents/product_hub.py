@@ -32,6 +32,15 @@ def _section(text: str, name: str, following: tuple[str, ...]) -> str:
     return "\n".join(line.strip() for line in lines[start + 1:end] if line.strip()).strip()
 
 
+def _value_after_label(text: str, label: str) -> str | None:
+    lines = [line.strip() for line in text.splitlines()]
+    for i, line in enumerate(lines[:-1]):
+        if line.casefold() == label.casefold():
+            value = lines[i + 1]
+            return None if value in {"—", "-", ""} else value
+    return None
+
+
 class ProductHubAgent:
     TARGET_STATUSES = ("Ready for QA", "Verifying")
     TASK_ID = re.compile(r"^VT-[A-Z0-9]+-\d+\b")
@@ -141,10 +150,16 @@ class ProductHubAgent:
                             comments_text = _section(detail_text, "COMMENTS", ("DESCRIPTION", "ACCEPTANCE CRITERIA", "REFERENCES"))
                             comments = [Comment(author="", body=x) for x in comments_text.splitlines() if x.strip() and x.strip() != "Comment"]
                             project = await self._read_field(page, "Project") or None
+                            documents_text = _section(detail_text, "TÀI LIỆU MARKDOWN", ("COMMENTS", "DESCRIPTION"))
+                            documents = [{"name": name, "content_read": "false"}
+                                         for name in re.findall(r"[^\n]+?\.(?:md|markdown)\b", documents_text, re.I)]
                             url = page.url if "feature=" in page.url or "bug=" in page.url else f"{self.url.split('?')[0]}?feature={task_id}"
                             found[task_id] = Card(task_id, actual_title or title, url, detail_status, qa,
                                                   priority=priority, project=project, description=description,
-                                                  acceptance_criteria=criteria, comments=comments)
+                                                  module=_value_after_label(detail_text, "Module"),
+                                                  area=_value_after_label(detail_text, "Area"),
+                                                  acceptance_criteria=criteria, comments=comments,
+                                                  documents=documents)
                     finally:
                         close = page.get_by_role("button", name="Đóng", exact=True)
                         if await close.count():
