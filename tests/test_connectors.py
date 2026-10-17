@@ -15,3 +15,9 @@ async def test_telegram_requires_credentials():
     agent = TelegramReleaseAgent(chat_id=-1002593712725)
     with pytest.raises(TelegramUnavailable, match="credentials"):
         await agent.collect()
+
+
+def test_empty_chat_id_variable_uses_verified_default(monkeypatch):
+    monkeypatch.setenv("TELEGRAM_CHAT_ID", "")
+    agent = TelegramReleaseAgent(api_id="1", api_hash="test", session="test")
+    assert agent.chat_id == -1002593712725

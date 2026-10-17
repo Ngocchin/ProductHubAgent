@@ -20,7 +20,14 @@ class TelegramReleaseAgent:
         self.api_id = api_id or os.getenv("TELEGRAM_API_ID")
         self.api_hash = api_hash or os.getenv("TELEGRAM_API_HASH")
         self.session = session or os.getenv("TELEGRAM_SESSION")
-        self.chat_id = chat_id if chat_id is not None else int(os.getenv("TELEGRAM_CHAT_ID", "-1002593712725"))
+        if chat_id is not None:
+            self.chat_id = chat_id
+        else:
+            raw_chat_id = (os.getenv("TELEGRAM_CHAT_ID") or "").strip() or "-1002593712725"
+            try:
+                self.chat_id = int(raw_chat_id)
+            except ValueError:
+                self.chat_id = None
         self.chat_title = chat_title or os.getenv("TELEGRAM_CHAT_TITLE", "[DEV] VuaTho Mobile")
 
     async def collect(self, limit: int = 200) -> list[Release]:
