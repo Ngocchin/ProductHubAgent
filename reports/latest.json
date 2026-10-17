@@ -5,12 +5,12 @@
   "analyses": {},
   "blockers": [
     "CHƯA THỂ XÁC MINH: thiếu phiên Product Hub đã đăng nhập.",
-    "CHƯA THỂ XÁC MINH Telegram: ValueError"
+    "CHƯA THỂ XÁC MINH: cần MTProto credentials và TELEGRAM_CHAT_ID đã xác minh."
   ],
   "changes": {
     "comparison": "skipped",
     "reason": "one or more source integrations are unavailable"
   },
-  "generated_at": "2026-10-17T15:39:50.688649+00:00",
+  "generated_at": "2026-10-17T15:43:05.225536+00:00",
   "processed_release_ids": []
 }

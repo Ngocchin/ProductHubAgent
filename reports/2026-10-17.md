@@ -3,7 +3,7 @@
 > Thu thập theo chế độ chỉ đọc. Checklist là đề xuất; chưa có test nào được đánh dấu PASS.
 
 ## A. Build mới từ Telegram
-- CHƯA THỂ XÁC MINH: chưa lấy được dữ liệu Telegram.
+- Không có thông báo build/release mới trong lần chạy này.
 
 ## B. Task đang Ready for QA
 - Không có card đã xác minh trong lần chạy này.
@@ -16,4 +16,4 @@
 
 ## F. Blocker và thông tin cần xác nhận
 - CHƯA THỂ XÁC MINH: thiếu phiên Product Hub đã đăng nhập.
-- CHƯA THỂ XÁC MINH Telegram: ValueError
+- CHƯA THỂ XÁC MINH: cần MTProto credentials và TELEGRAM_CHAT_ID đã xác minh.
