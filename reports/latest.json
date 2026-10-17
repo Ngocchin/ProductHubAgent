@@ -1,0 +1,16 @@
+{
+  "date": "2026-10-17",
+  "cards": [],
+  "releases": [],
+  "analyses": {},
+  "blockers": [
+    "CHƯA THỂ XÁC MINH: thiếu phiên Product Hub đã đăng nhập.",
+    "CHƯA THỂ XÁC MINH Telegram: ValueError"
+  ],
+  "changes": {
+    "comparison": "skipped",
+    "reason": "one or more source integrations are unavailable"
+  },
+  "generated_at": "2026-10-17T15:39:50.688649+00:00",
+  "processed_release_ids": []
+}
