@@ -10,8 +10,8 @@ class QAIntelligenceAgent:
         text = "\n".join(x for x in (card.title, card.description, *card.acceptance_criteria) if x).strip()
         source = card.task_id
         cases: list[TestCase] = []
-        if not text:
-            return {"test_cases": [], "clarifications": ["Card không có mô tả/acceptance criteria đọc được; cần BA/Dev bổ sung."], "evidence": []}
+        if not card.description.strip() and not card.acceptance_criteria:
+            return {"test_cases": [], "clarifications": ["Card không có mô tả/acceptance criteria đọc được; chỉ có title nên chưa đủ căn cứ lập test cụ thể. Cần BA/Dev bổ sung."], "evidence": []}
         snippets = [s.strip(" -*\t") for s in re.split(r"\n+|(?<=[.!?])\s+", text) if s.strip()]
         cases.append(TestCase(f"{source}-TC01", f"Kiểm tra luồng chính: {card.title}", [], [],
                               ["Mở chức năng được mô tả trong card", "Thực hiện thao tác theo yêu cầu đã ghi"],
@@ -34,11 +34,17 @@ class QAIntelligenceAgent:
 
     def analyze_release_impact(self, cards: list[Card], releases: list[Release]) -> list[dict]:
         out = []
+        def terms_for(value: str) -> set[str]:
+            normalized = value.casefold()
+            for phrase, canonical in (("điện thoại", "phone"), ("số điện thoại", "phone"),
+                                      ("hồ sơ", "profile"), ("cập nhật", "update")):
+                normalized = normalized.replace(phrase, canonical)
+            return {t for t in re.findall(r"[\wÀ-ỹ]{4,}", normalized) if t not in {"build", "release", "version", "update"}}
         for release in releases:
-            terms = {t.casefold() for t in re.findall(r"[\wÀ-ỹ]{4,}", release.text) if t.casefold() not in {"build", "release", "version", "update"}}
+            terms = terms_for(release.text)
             matched = []
             for card in cards:
-                card_terms = {t.casefold() for t in re.findall(r"[\wÀ-ỹ]{4,}", card.title + " " + card.description)}
+                card_terms = terms_for(card.title + " " + card.description)
                 overlap = sorted(terms & card_terms)
                 if overlap:
                     matched.append({"task_id": card.task_id, "matching_terms": overlap, "inclusion_in_build": "CHƯA THỂ XÁC MINH"})
@@ -46,3 +52,4 @@ class QAIntelligenceAgent:
                         "smoke_test": "Review release notes; run smoke tests for explicitly mentioned flows.",
                         "regression": "CHƯA THỂ XÁC MINH: release note không tự chứng minh phạm vi regression."})
         return out
+
