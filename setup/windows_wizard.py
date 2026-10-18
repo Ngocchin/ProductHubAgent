@@ -2,10 +2,7 @@
 from __future__ import annotations
 
 import asyncio
-import importlib
 import json
-import os
-import sys
 import threading
 import tkinter as tk
 import webbrowser
@@ -342,57 +339,7 @@ class SetupWizard:
         self.root.mainloop()
 
 
-SELF_TEST_MODULES = (
-    "setup",
-    "setup.async_utils",
-    "setup.github_config",
-    "setup.product_hub_enrollment",
-    "setup.windows_wizard",
-    "playwright",
-    "playwright.async_api",
-    "telethon",
-    "telethon.sessions",
-    "nacl.public",
-)
-
-
-def run_self_test() -> int:
-    """Verify the frozen module graph without creating a Tk window or using credentials."""
-    failures = []
-    for module_name in SELF_TEST_MODULES:
-        try:
-            importlib.import_module(module_name)
-        except Exception as exc:
-            missing_name = getattr(exc, "name", None)
-            detail = f"{type(exc).__name__} ({missing_name})" if missing_name else type(exc).__name__
-            failures.append(f"{module_name}: {detail}")
-
-    report = (
-        "SELF-TEST FAILED: " + "; ".join(failures)
-        if failures
-        else f"SELF-TEST OK: imported {len(SELF_TEST_MODULES)} required modules"
-    )
-    report_path = os.environ.get("VUA_THO_SETUP_SELF_TEST_REPORT")
-    if report_path:
-        try:
-            from pathlib import Path
-            Path(report_path).write_text(report + "\n", encoding="utf-8")
-        except OSError:
-            pass
-    stream = sys.stderr if failures else sys.stdout
-    if stream is not None:
-        print(report, file=stream)
-    return 1 if failures else 0
-
-
-def main(argv: list[str] | None = None) -> int:
-    arguments = sys.argv[1:] if argv is None else argv
-    if arguments == ["--self-test"]:
-        return run_self_test()
-    if arguments:
-        if sys.stderr is not None:
-            print("Usage: VuaThoQASetup.exe [--self-test]", file=sys.stderr)
-        return 2
+def main() -> int:
     SetupWizard().run()
     return 0
 

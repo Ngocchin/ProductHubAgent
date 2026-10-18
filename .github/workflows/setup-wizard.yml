@@ -36,13 +36,19 @@ jobs:
         run: |
           $report = Join-Path $env:RUNNER_TEMP "VuaThoQASetup-self-test.txt"
           $env:VUA_THO_SETUP_SELF_TEST_REPORT = $report
-          $process = Start-Process -FilePath "$PWD\dist\VuaThoQASetup.exe" -ArgumentList "--self-test" -Wait -PassThru
+          $process = Start-Process -FilePath "$PWD\dist\VuaThoQASetup.exe" -ArgumentList "--self-test" -PassThru
+          if (-not $process.WaitForExit(90000)) {
+            Stop-Process -Id $process.Id -Force
+            if (Test-Path $report) { Get-Content $report }
+            throw "Packaged wizard self-test timed out after 90 seconds."
+          }
+          $process.Refresh()
           Remove-Item Env:VUA_THO_SETUP_SELF_TEST_REPORT
           if (Test-Path $report) { Get-Content $report }
           if ($process.ExitCode -ne 0) {
             throw "Packaged wizard self-test failed with exit code $($process.ExitCode)."
           }
-          if (-not (Test-Path $report) -or (Get-Content $report -Raw) -notmatch '^SELF-TEST OK:') {
+          if (-not (Test-Path $report) -or (Get-Content $report -Raw) -notmatch '(?m)^SELF-TEST OK:') {
             throw "Packaged wizard self-test did not write a success report."
           }
           Write-Host "Packaged wizard self-test passed (exit code 0)."

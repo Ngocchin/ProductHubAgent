@@ -10,6 +10,7 @@ from setup.async_utils import submit_coroutine
 from setup.github_config import GitHubRepoConfigurator, encrypt_secret
 from setup.product_hub_enrollment import verify_board_page
 from setup import windows_wizard
+import windows_setup
 
 
 def test_submit_coroutine_requires_the_called_async_method():
@@ -37,7 +38,7 @@ def test_self_test_entrypoint_does_not_create_tk_window(monkeypatch):
         raise AssertionError("self-test must not create the Tk interface")
 
     monkeypatch.setattr(windows_wizard.SetupWizard, "__init__", fail_if_gui_starts)
-    assert windows_wizard.main(["--self-test"]) == 0
+    assert windows_setup.main(["--self-test"]) == 0
 
 
 def test_product_hub_board_must_be_verified_before_session_capture():
