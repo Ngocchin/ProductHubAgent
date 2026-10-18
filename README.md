@@ -1,3 +1,5 @@
+> **Bắt đầu tại đây:** [Hướng dẫn chọn đúng project và thiết lập QA không cần terminal](START-HERE.md).
+
 # VuaTho QA Daily Assistant
 
 Read-only daily QA collection and reporting for Product Hub and Telegram. Python 3.12+, Playwright, Telethon, pytest.
