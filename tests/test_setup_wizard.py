@@ -41,6 +41,10 @@ def test_self_test_entrypoint_does_not_create_tk_window(monkeypatch):
     assert windows_setup.main(["--self-test"]) == 0
 
 
+def test_self_test_verifies_extension_package_and_scoped_host_permission():
+    windows_setup.verify_extension_bundle()
+
+
 def test_product_hub_board_must_be_verified_before_session_capture():
     verify_board_page(
         "https://product-hub.vuatho.com/board",

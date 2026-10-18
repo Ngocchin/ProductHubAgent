@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib
+import json
 import os
 import sys
 from pathlib import Path
@@ -23,6 +24,17 @@ SELF_TEST_MODULES = (
 )
 
 
+def verify_extension_bundle() -> None:
+    root = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
+    extension = root / "product-hub-extension"
+    required_files = ("manifest.json", "popup.html", "popup.js", "content.js")
+    if any(not (extension / name).is_file() for name in required_files):
+        raise FileNotFoundError("Product Hub extension assets missing from package")
+    manifest = json.loads((extension / "manifest.json").read_text(encoding="utf-8"))
+    if manifest.get("host_permissions") != ["https://product-hub.vuatho.com/*"]:
+        raise ValueError("Unexpected Product Hub extension host permissions")
+
+
 def run_self_test() -> int:
     """Import the frozen dependency graph without creating the Tk interface."""
     results = []
@@ -35,6 +47,13 @@ def run_self_test() -> int:
             detail = f"{type(exc).__name__} ({missing_name})" if missing_name else type(exc).__name__
             results.append(f"FAIL {module_name}: {detail}")
             break
+
+    if not any(line.startswith("FAIL ") for line in results):
+        try:
+            verify_extension_bundle()
+            results.append("OK product-hub-extension assets and host permissions")
+        except Exception as exc:
+            results.append(f"FAIL product-hub-extension: {type(exc).__name__}")
 
         report_path = os.environ.get("VUA_THO_SETUP_SELF_TEST_REPORT")
         if report_path:
