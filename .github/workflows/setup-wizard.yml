@@ -25,6 +25,7 @@ jobs:
           --hidden-import setup.github_config
           --hidden-import setup.product_hub_enrollment
           --hidden-import setup.windows_wizard
+          --hidden-import nacl.public
           --collect-all playwright
           --collect-all telethon
           --collect-all nacl
