@@ -143,5 +143,5 @@ def test_user_approved_report_upload_uses_contents_api_not_repository_secret():
 
 
 def test_report_upload_rejects_paths_outside_manual_reports():
-    with pytest.raises(GitHubSetupError, match="đường dẫn upload báo cáo"):
+    with pytest.raises(GitHubSetupError, match="(?i)đường dẫn upload báo cáo"):
         GitHubRepoConfigurator("token").upload_report_file("reports/history.json", "data")

@@ -28,7 +28,7 @@ def test_report_uses_only_confirmed_acceptance_criteria_and_marks_manual_blocker
     assert "Maybe add retries?" in markdown
     assert "không xem là tiêu chí nghiệm thu" in markdown
     assert "Maybe add retries?" not in "\n".join(x for x in markdown.splitlines() if x.startswith("- [ ]"))
-    assert "Cloud: BLOCKED" in markdown
+    assert "Cloud khi máy tắt: BLOCKED" in markdown
     assert "CHƯA CHẠY" in markdown
     assert "PASS" not in markdown
     assert payload["cloud_status"] == "BLOCKED"
