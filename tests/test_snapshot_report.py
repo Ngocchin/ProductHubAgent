@@ -30,7 +30,8 @@ def test_report_uses_only_confirmed_acceptance_criteria_and_marks_manual_blocker
     assert "Maybe add retries?" not in "\n".join(x for x in markdown.splitlines() if x.startswith("- [ ]"))
     assert "Cloud khi máy tắt: BLOCKED" in markdown
     assert "CHƯA CHẠY" in markdown
-    assert "PASS" not in markdown
+    assert "- [x]" not in markdown
+    assert "không có test nào được thực thi hoặc đánh dấu PASS" in markdown
     assert payload["cloud_status"] == "BLOCKED"
     md_path, json_path = write_snapshot_report(tmp_path / "manual-sync-new", markdown, payload)
     history = tmp_path / "history.json"
