@@ -363,7 +363,9 @@ def run_self_test() -> int:
         try:
             importlib.import_module(module_name)
         except Exception as exc:
-            failures.append(f"{module_name}: {type(exc).__name__}")
+            missing_name = getattr(exc, "name", None)
+            detail = f"{type(exc).__name__} ({missing_name})" if missing_name else type(exc).__name__
+            failures.append(f"{module_name}: {detail}")
 
     report = (
         "SELF-TEST FAILED: " + "; ".join(failures)

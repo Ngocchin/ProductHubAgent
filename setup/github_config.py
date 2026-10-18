@@ -6,6 +6,8 @@ import json
 import urllib.error
 import urllib.request
 
+from nacl.public import PublicKey, SealedBox
+
 REPOSITORY = "Ngocchin/ProductHubAgent"
 API_BASE = "https://api.github.com"
 
@@ -17,7 +19,6 @@ class GitHubSetupError(RuntimeError):
 def encrypt_secret(public_key_b64: str, value: str) -> str:
     """Encrypt a repository secret using GitHub's public key and libsodium sealed box."""
     try:
-        from nacl.public import PublicKey, SealedBox
         public_key = PublicKey(base64.b64decode(public_key_b64, validate=True))
         encrypted = SealedBox(public_key).encrypt(value.encode("utf-8"))
     except Exception as exc:
