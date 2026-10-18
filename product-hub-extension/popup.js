@@ -10,7 +10,7 @@ async function readBoard() {
 }
 document.getElementById("verify").onclick = async () => {
   status.textContent = "Đang xác minh board và trường QA…";
-  try { const d = await readBoard(); status.textContent = `Đã xác minh board thật · ${d.cards.length} card QA=Chin · ${d.columns.join(", ")}`; }
+  try { const d = await readBoard(); status.textContent = `Quét thành công · ${d.cards_scanned} card đã đọc · ${d.cards.length} card QA=Chin · ${d.columns.join(", ")}`; }
   catch (e) { status.textContent = e.message; }
 };
 document.getElementById("sync").onclick = async () => {
@@ -23,7 +23,12 @@ document.getElementById("sync").onclick = async () => {
     URL.revokeObjectURL(url);
     const time = new Date().toISOString();
     await chrome.storage.local.set({lastSync: time});
-    status.textContent = `Đã xuất ${d.cards.length} card. Chọn vị trí lưu JSON. Lần đồng bộ: ${time}`;
+    status.textContent = `Đã quét ${d.cards_scanned} card và xuất ${d.cards.length} card QA=Chin. Chọn vị trí lưu JSON.`;
+    const label = document.getElementById("last-sync");
+    if (label) label.textContent = `Last sync: ${time}`;
   } catch (e) { status.textContent = e.message; }
 };
-chrome.storage.local.get("lastSync", ({lastSync}) => { if (lastSync) status.textContent += `\nLần đồng bộ trước: ${lastSync}`; });
+chrome.storage.local.get("lastSync", ({lastSync}) => {
+  const label = document.getElementById("last-sync");
+  if (label) label.textContent = `Last sync: ${lastSync || "chưa đồng bộ"}`;
+});

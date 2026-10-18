@@ -16,3 +16,5 @@ jobs:
           cache: pip
       - run: python -m pip install -e '.[test]'
       - run: pytest
+      - name: Test Chrome extension message and popup integration
+        run: node --test tests/extension/*.test.cjs

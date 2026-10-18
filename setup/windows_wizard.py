@@ -10,13 +10,16 @@ import sys
 import threading
 import tkinter as tk
 import webbrowser
+from datetime import datetime
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
+from zoneinfo import ZoneInfo
 
 from .async_utils import submit_coroutine
 from .github_config import GitHubRepoConfigurator, GitHubSetupError
 from .product_hub_enrollment import PRODUCT_HUB_URL
 from .product_hub_snapshot import validate_snapshot
+from agents.snapshot_report import render_snapshot_report, write_snapshot_report
 
 CHAT_ID = -1002593712725
 CHAT_TITLE = "[DEV] VuaTho Mobile"
@@ -40,6 +43,8 @@ class SetupWizard:
 
         self.product_snapshot = ""
         self.product_snapshot_data = None
+        self.product_report_directory: Path | None = None
+        self.product_report_directory: Path | None = None
         self.tg_client = None
         self.phone_code_hash = None
         self.password_needed = False
@@ -80,11 +85,11 @@ class SetupWizard:
         outer = ttk.Frame(self.root, padding=16)
         outer.pack(fill="both", expand=True)
         ttk.Label(outer, text="Thiết lập VuaTho QA", font=("Segoe UI", 18, "bold")).pack(anchor="w")
-        ttk.Label(outer, text=f"Repository đích: {REPOSITORY}. Token, cookie, OTP và Telegram session chỉ nằm trong bộ nhớ ứng dụng.", wraplength=810).pack(anchor="w", pady=(4, 12))
+        ttk.Label(outer, text=f"Repository đích: {REPOSITORY}. Token, OTP và Telegram session chỉ nằm trong bộ nhớ ứng dụng.", wraplength=810).pack(anchor="w", pady=(4, 12))
 
         github = ttk.LabelFrame(outer, text="1. Connect GitHub", padding=10)
         github.pack(fill="x", pady=5)
-        ttk.Label(github, text="Tạo fine-grained token chỉ cho ProductHubAgent với Secrets: Read and write, Variables: Read and write, Actions: Read and write (cần Actions để chạy báo cáo). Metadata: Read được cấp tự động. Ứng dụng chỉ giữ token trong bộ nhớ phiên này.", wraplength=790).pack(anchor="w")
+        ttk.Label(github, text="Fine-grained token chỉ cho ProductHubAgent: Secrets/Variables: Read and write để lưu cấu hình; tùy chọn Contents: Read and write nếu upload report. Metadata: Read được cấp tự động. Token chỉ nằm trong bộ nhớ phiên.", wraplength=790).pack(anchor="w")
         row = ttk.Frame(github); row.pack(fill="x", pady=6)
         ttk.Button(row, text="Connect GitHub", command=self._open_github_token_page).pack(side="left")
         self.github_token = self._entry(row, "Fine-grained token", show="*")
@@ -97,8 +102,9 @@ class SetupWizard:
         ttk.Button(row, text="Install / Open Extension", command=self._install_extension).pack(side="left")
         ttk.Button(row, text="Connect Product Hub", command=lambda: self._open_chrome(PRODUCT_HUB_URL)).pack(side="left", padx=6)
         ttk.Button(row, text="Verify JSON", command=self._import_product_snapshot).pack(side="left")
-        ttk.Button(row, text="Sync to GitHub", command=self._sync_product_snapshot).pack(side="left", padx=6)
-        ttk.Label(product, text="Chế độ Extension chỉ đồng bộ khi bạn mở Chrome và bấm Sync. Cloud khi PC tắt đang BLOCKED cho đến khi Product Hub admin cấp và xác minh API/tài khoản tích hợp read-only.", wraplength=790).pack(anchor="w", pady=(2, 0))
+        ttk.Button(row, text="Create Local QA Report", command=self._create_local_qa_report).pack(side="left", padx=6)
+        ttk.Button(row, text="Upload Saved Report", command=self._upload_saved_report).pack(side="left")
+        ttk.Label(product, text="Manual Sync: chỉ quét khi Chrome/PC hoạt động; tạo Markdown/JSON cục bộ. Cloud: BLOCKED đến khi Product Hub admin cấp và xác minh API/integration read-only server-side.", wraplength=790).pack(anchor="w", pady=(2, 0))
 
         telegram = ttk.LabelFrame(outer, text="3. Connect Telegram", padding=10)
         telegram.pack(fill="x", pady=5)
@@ -116,7 +122,7 @@ class SetupWizard:
 
         configure = ttk.LabelFrame(outer, text="4. Configure GitHub automatically", padding=10)
         configure.pack(fill="x", pady=5)
-        ttk.Label(configure, text="Khi cả ba kết nối đã được kiểm tra, ứng dụng mã hóa secrets bằng public key do GitHub cung cấp, cập nhật variables và xác minh tên chúng đã tồn tại. Không hiển thị/đọc lại giá trị secret.", wraplength=790).pack(anchor="w")
+        ttk.Label(configure, text="Khi GitHub và Telegram được kiểm tra, ứng dụng mã hóa Telegram secrets bằng public key GitHub, cập nhật variables và xác minh tên. Không hiển thị/đọc lại giá trị secret.", wraplength=790).pack(anchor="w")
         ttk.Button(configure, text="Save Configuration", command=self._save_configuration).pack(anchor="w", pady=6)
 
         verify = ttk.LabelFrame(outer, text="5. Verify Connections", padding=10)
@@ -249,7 +255,7 @@ class SetupWizard:
         if error:
             self.status.set(error + " Hãy kiểm tra quyền token rồi thử lại.")
         else:
-            self.status.set("Đã cấu hình và chỉ xác minh tên: " + ", ".join(result["secrets"] + result["variables"]) + ". Token vẫn chỉ ở bộ nhớ đến khi chạy báo cáo hoặc đóng wizard.")
+            self.status.set("Đã cấu hình và chỉ xác minh tên: " + ", ".join(result["secrets"] + result["variables"]) + ". Token vẫn chỉ ở bộ nhớ đến khi đóng wizard.")
 
     def _install_extension(self) -> None:
         source_root = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[1])) / "product-hub-extension"
@@ -258,9 +264,7 @@ class SetupWizard:
             return
         destination = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "VuaThoQA" / "product-hub-extension"
         try:
-            if destination.exists():
-                shutil.rmtree(destination)
-            shutil.copytree(source_root, destination)
+            shutil.copytree(source_root, destination, dirs_exist_ok=True)
             self._open_chrome("chrome://extensions")
             os.startfile(str(destination))
             self.status.set(f"Extension đã được giải nén tại {destination}. Trong Chrome bật Developer mode → Load unpacked → chọn thư mục này.")
@@ -294,31 +298,58 @@ class SetupWizard:
         self.product_snapshot = raw
         self.product_snapshot_data = data
         self.product_verified = True
-        self.status.set(f"Snapshot đúng schema: {len(data['cards'])} card khai báo QA=Chin ở các cột {', '.join(data['columns'])}; thời điểm xuất {data['generated_at']}. Hãy dùng Verify trong Extension để xác minh board trực tiếp.")
+        self.product_report_directory = None
+        self.status.set(f"Snapshot đúng schema: {len(data['cards'])} card QA=Chin khai báo; cột {', '.join(data['columns'])}; thời điểm xuất {data['generated_at']}. Hãy Verify board trực tiếp trong Extension.")
 
-    def _sync_product_snapshot(self) -> None:
+    def _create_local_qa_report(self) -> None:
         if not self.product_verified or not self.product_snapshot:
-            self.status.set("Bấm Verify JSON và chọn file do Extension xuất trước.")
+            self.status.set("Verify JSON trước khi tạo report.")
+            return
+        parent = filedialog.askdirectory(title="Chọn thư mục lưu report QA cục bộ")
+        if not parent:
+            return
+        now = datetime.now(ZoneInfo("Asia/Ho_Chi_Minh"))
+        target = Path(parent) / ("manual-sync-" + now.strftime("%Y%m%d-%H%M%S-%f"))
+        try:
+            markdown, payload = render_snapshot_report(self.product_snapshot, now.date())
+            md_path, json_path = write_snapshot_report(target, markdown, payload)
+        except (OSError, ValueError) as exc:
+            self.status.set(f"Không tạo được report ({type(exc).__name__}).")
+            return
+        self.product_report_directory = target
+        self.status.set(f"Manual Sync report đã tạo: {md_path} và {json_path}. Cloud vẫn BLOCKED.")
+
+    def _upload_saved_report(self) -> None:
+        if not self.product_report_directory or not self.product_report_directory.is_dir():
+            self.status.set("Tạo report cục bộ trước khi upload.")
             return
         if not self.github_verified or not self._github_token_memory:
-            self.status.set("Cần Verify GitHub trước khi tải snapshot lên GitHub Secrets.")
+            self.status.set("Verify GitHub trước; token cần Contents: Read and write để upload report.")
             return
-        count = len(self.product_snapshot_data["cards"])
         accepted = messagebox.askyesno(
-            "Xác nhận chuyển dữ liệu QA",
-            f"Tải {count} card QA=Chin (bao gồm nội dung card đang hiển thị và liên kết tài liệu cùng miền) lên GitHub Secret được mã hóa của repository private {REPOSITORY}? Dữ liệu sẽ rời máy này. Thao tác này không bật lịch cloud và không xác minh API Product Hub.",
+            "Xác nhận upload report",
+            f"Upload report Markdown và JSON của Manual Sync lên repository private {REPOSITORY}? Nội dung snapshot sẽ được commit vào reports/manual-sync/; cần quyền Contents: Read and write. Không upload credentials và không bật cloud schedule.",
         )
         if not accepted:
-            self.status.set("Đã hủy; snapshot chỉ còn trong bộ nhớ của wizard.")
+            self.status.set("Đã hủy upload; report vẫn chỉ lưu cục bộ.")
             return
-        self.status.set("Đang mã hóa và tải snapshot lên GitHub Secret...")
-        self._submit(asyncio.to_thread(GitHubRepoConfigurator(self._github_token_memory).configure, {"PRODUCT_HUB_EXTENSION_SNAPSHOT": self.product_snapshot}, {}), self._product_snapshot_synced)
+        repo_dir = f"reports/manual-sync/{self.product_report_directory.name}"
+        self.status.set("Đang upload report đã xác nhận...")
+        self._submit(asyncio.to_thread(self._upload_report_files, GitHubRepoConfigurator(self._github_token_memory), self.product_report_directory, repo_dir), self._report_uploaded)
 
-    def _product_snapshot_synced(self, result, error):
+    @staticmethod
+    def _upload_report_files(configurator, directory: Path, repo_dir: str) -> list[str]:
+        urls = []
+        for filename in ("report.md", "report.json"):
+            content = (directory / filename).read_text(encoding="utf-8")
+            urls.append(configurator.upload_report_file(f"{repo_dir}/{filename}", content))
+        return urls
+
+    def _report_uploaded(self, urls, error):
         if error:
             self.status.set(error)
         else:
-            self.status.set("Đã tải snapshot lên GitHub Secret được mã hóa và xác minh tên secret. Báo cáo cloud tự động vẫn BLOCKED; cần Product Hub admin cấp API read-only được hỗ trợ trước khi bật.")
+            self.status.set(f"Đã upload {len(urls)} report files vào reports/manual-sync/ trong private repo. Lịch cloud vẫn BLOCKED.")
 
     def _run_qa_report(self) -> None:
         self.status.set("Báo cáo cloud đang BLOCKED vì chưa có Product Hub API/integration server-side được admin cấp quyền và xác minh. Extension snapshot không bật lịch chạy khi PC tắt.")

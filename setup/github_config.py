@@ -5,6 +5,7 @@ import base64
 import json
 import urllib.error
 import urllib.request
+from urllib.parse import quote
 
 from nacl.public import PublicKey, SealedBox
 
@@ -54,7 +55,7 @@ class GitHubRepoConfigurator:
         except urllib.error.HTTPError as exc:
             messages = {
                 401: "GitHub token không hợp lệ hoặc đã hết hạn.",
-                403: "GitHub từ chối quyền. Token cần Secrets: Read and write, Variables: Read and write; để chạy workflow cần thêm Actions: Read and write.",
+                403: "GitHub từ chối quyền. Token cần quyền tương ứng với thao tác: Secrets/Variables, Actions hoặc Contents: Read and write để tải báo cáo.",
                 404: "Không thấy repository hoặc token chưa được cấp quyền vào repository này.",
             }
             raise GitHubSetupError(messages.get(exc.code, f"GitHub API trả lỗi HTTP {exc.code}.") ) from None
@@ -103,4 +104,21 @@ class GitHubRepoConfigurator:
     def dispatch_daily_report(self) -> None:
         self.verify_access()
         self._request("POST", f"/repos/{self.repository}/actions/workflows/daily-qa.yml/dispatches", {"ref": "main"})
+
+    def upload_report_file(self, repository_path: str, content: str) -> str:
+        """Upload a user-approved report file to a unique path in the private repo."""
+        normalized = repository_path.replace("\\", "/")
+        if (not normalized.startswith("reports/manual-sync/") or ".." in normalized.split("/")
+                or not normalized.endswith(("/report.md", "/report.json"))):
+            raise GitHubSetupError("Đường dẫn upload báo cáo không hợp lệ.")
+        self.verify_access()
+        encoded = base64.b64encode(content.encode("utf-8")).decode("ascii")
+        result = self._request("PUT", f"/repos/{self.repository}/contents/{quote(normalized, safe='/')}", {
+            "message": f"qa: add manual Product Hub snapshot report {normalized.rsplit('/', 1)[-1]}",
+            "content": encoded,
+            "branch": "main",
+        })
+        if result.get("content", {}).get("path") != normalized:
+            raise GitHubSetupError("Không xác minh được đường dẫn báo cáo sau khi upload.")
+        return result.get("content", {}).get("html_url", "")
 

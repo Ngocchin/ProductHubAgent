@@ -16,6 +16,7 @@ SELF_TEST_MODULES = (
     "setup.product_hub_enrollment",
     "setup.product_hub_snapshot",
     "setup.windows_wizard",
+    "agents.snapshot_report",
     "playwright",
     "playwright.async_api",
     "telethon",

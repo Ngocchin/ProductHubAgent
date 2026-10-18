@@ -12,7 +12,8 @@ def snapshot(card=None):
         "generated_at": "2026-10-18T00:00:00Z",
         "board_url": "https://product-hub.vuatho.com/board",
         "columns": ["Ready for QA", "Verifying"],
-        "cards": [card or {"id": "VT-APP-123", "title": "Example", "status": "Ready for QA", "qa": "Chin"}],
+        "cards_scanned": 1 if card is None else 1,
+        "cards": [card or {"id": "VT-APP-123", "title": "Example", "url": "https://product-hub.vuatho.com/board?feature=VT-APP-123", "status": "Ready for QA", "qa": "Chin"}],
     }
 
 
@@ -23,8 +24,8 @@ def test_valid_extension_snapshot_requires_real_board_and_qa_filter():
 @pytest.mark.parametrize("change", [
     {"board_url": "https://evil.example/board"},
     {"columns": ["Ready for QA"]},
-    {"cards": [{"id": "VT-APP-123", "title": "Example", "status": "Done", "qa": "Chin"}]},
-    {"cards": [{"id": "VT-APP-123", "title": "Example", "status": "Verifying", "qa": "Someone else"}]},
+    {"cards": [{"id": "VT-APP-123", "title": "Example", "url": "https://product-hub.vuatho.com/board", "status": "Done", "qa": "Chin"}]},
+    {"cards": [{"id": "VT-APP-123", "title": "Example", "url": "https://product-hub.vuatho.com/board", "status": "Verifying", "qa": "Someone else"}]},
 ])
 def test_snapshot_rejects_unverified_source_or_unfiltered_cards(change):
     data = snapshot()

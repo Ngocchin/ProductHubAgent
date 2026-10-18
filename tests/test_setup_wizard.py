@@ -7,7 +7,7 @@ import pytest
 from nacl.public import PrivateKey, SealedBox
 
 from setup.async_utils import submit_coroutine
-from setup.github_config import GitHubRepoConfigurator, encrypt_secret
+from setup.github_config import GitHubRepoConfigurator, GitHubSetupError, encrypt_secret
 from setup.product_hub_enrollment import verify_board_page
 from setup import windows_wizard
 import windows_setup
@@ -114,3 +114,34 @@ def test_configurator_encrypts_secrets_and_verifies_names_only():
     assert seen_secrets == secret_values
     assert seen_variables == variable_values
     assert result == {"secrets": sorted(secret_values), "variables": sorted(variable_values)}
+
+
+def test_user_approved_report_upload_uses_contents_api_not_repository_secret():
+    seen = []
+
+    class Response:
+        def __init__(self, value):
+            self.value = json.dumps(value).encode()
+        def __enter__(self): return self
+        def __exit__(self, *_args): return False
+        def read(self): return self.value
+
+    def opener(request, timeout):
+        seen.append(request)
+        if request.method == "GET":
+            return Response({"full_name": "Ngocchin/ProductHubAgent"})
+        payload = json.loads(request.data)
+        assert base64.b64decode(payload["content"]).decode() == "# Manual QA report\n"
+        assert "actions/secrets" not in request.full_url
+        return Response({"content": {"path": "reports/manual-sync/run-123/report.md", "html_url": "https://github.com/Ngocchin/ProductHubAgent/blob/main/reports/manual-sync/run-123/report.md"}})
+
+    url = GitHubRepoConfigurator("token", opener=opener).upload_report_file(
+        "reports/manual-sync/run-123/report.md", "# Manual QA report\n"
+    )
+    assert url.endswith("report.md")
+    assert [request.method for request in seen] == ["GET", "PUT"]
+
+
+def test_report_upload_rejects_paths_outside_manual_reports():
+    with pytest.raises(GitHubSetupError, match="đường dẫn upload báo cáo"):
+        GitHubRepoConfigurator("token").upload_report_file("reports/history.json", "data")
