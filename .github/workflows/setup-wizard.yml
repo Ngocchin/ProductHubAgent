@@ -26,9 +26,11 @@ jobs:
           --hidden-import setup.product_hub_enrollment
           --hidden-import setup.windows_wizard
           --hidden-import nacl.public
+          --hidden-import _cffi_backend
           --collect-all playwright
           --collect-all telethon
           --collect-all nacl
+          --collect-all cffi
           --collect-submodules nacl
           --name VuaThoQASetup windows_setup.py
       - name: Smoke test packaged EXE module graph
