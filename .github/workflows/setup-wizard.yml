@@ -3,6 +3,7 @@ on:
   push:
     paths:
       - 'setup/**'
+      - 'windows_setup.py'
       - '.github/workflows/setup-wizard.yml'
   workflow_dispatch:
 permissions:
@@ -16,7 +17,26 @@ jobs:
         with:
           python-version: '3.12'
       - run: python -m pip install playwright telethon pynacl pyinstaller
-      - run: pyinstaller --noconfirm --onefile --windowed --collect-all playwright --collect-all telethon --collect-all nacl --name VuaThoQASetup setup/windows_wizard.py
+      - name: Build one-file Windows wizard
+        run: >-
+          pyinstaller --noconfirm --clean --onefile --windowed
+          --paths .
+          --hidden-import setup.async_utils
+          --hidden-import setup.github_config
+          --hidden-import setup.product_hub_enrollment
+          --hidden-import setup.windows_wizard
+          --collect-all playwright
+          --collect-all telethon
+          --collect-all nacl
+          --name VuaThoQASetup windows_setup.py
+      - name: Smoke test packaged EXE module graph
+        shell: pwsh
+        run: |
+          $process = Start-Process -FilePath "$PWD\dist\VuaThoQASetup.exe" -ArgumentList "--self-test" -Wait -PassThru
+          if ($process.ExitCode -ne 0) {
+            throw "Packaged wizard self-test failed with exit code $($process.ExitCode)."
+          }
+          Write-Host "Packaged wizard self-test passed (exit code 0)."
       - uses: actions/upload-artifact@v4
         with:
           name: VuaThoQASetup-Windows

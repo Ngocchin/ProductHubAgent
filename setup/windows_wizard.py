@@ -2,20 +2,17 @@
 from __future__ import annotations
 
 import asyncio
+import importlib
 import json
+import sys
 import threading
 import tkinter as tk
 import webbrowser
 from tkinter import ttk
 
-if __package__:
-    from .async_utils import submit_coroutine
-    from .github_config import GitHubRepoConfigurator, GitHubSetupError
-    from .product_hub_enrollment import PRODUCT_HUB_URL, verify_board_page
-else:  # PyInstaller starts from this script's directory.
-    from async_utils import submit_coroutine
-    from github_config import GitHubRepoConfigurator, GitHubSetupError
-    from product_hub_enrollment import PRODUCT_HUB_URL, verify_board_page
+from .async_utils import submit_coroutine
+from .github_config import GitHubRepoConfigurator, GitHubSetupError
+from .product_hub_enrollment import PRODUCT_HUB_URL, verify_board_page
 
 CHAT_ID = -1002593712725
 CHAT_TITLE = "[DEV] VuaTho Mobile"
@@ -344,6 +341,50 @@ class SetupWizard:
         self.root.mainloop()
 
 
+SELF_TEST_MODULES = (
+    "setup",
+    "setup.async_utils",
+    "setup.github_config",
+    "setup.product_hub_enrollment",
+    "setup.windows_wizard",
+    "playwright",
+    "playwright.async_api",
+    "telethon",
+    "telethon.sessions",
+    "nacl.public",
+)
+
+
+def run_self_test() -> int:
+    """Verify the frozen module graph without creating a Tk window or using credentials."""
+    failures = []
+    for module_name in SELF_TEST_MODULES:
+        try:
+            importlib.import_module(module_name)
+        except Exception as exc:
+            failures.append(f"{module_name}: {type(exc).__name__}")
+
+    if failures:
+        if sys.stderr is not None:
+            print("SELF-TEST FAILED: " + "; ".join(failures), file=sys.stderr)
+        return 1
+    if sys.stdout is not None:
+        print(f"SELF-TEST OK: imported {len(SELF_TEST_MODULES)} required modules")
+    return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    arguments = sys.argv[1:] if argv is None else argv
+    if arguments == ["--self-test"]:
+        return run_self_test()
+    if arguments:
+        if sys.stderr is not None:
+            print("Usage: VuaThoQASetup.exe [--self-test]", file=sys.stderr)
+        return 2
+    SetupWizard().run()
+    return 0
+
+
 def _safe_exception_message(exc: Exception) -> str:
     name = type(exc).__name__
     if name in {"TimeoutError", "PlaywrightTimeoutError"}:
@@ -356,4 +397,4 @@ def _safe_exception_message(exc: Exception) -> str:
 
 
 if __name__ == "__main__":
-    SetupWizard().run()
+    raise SystemExit(main())
