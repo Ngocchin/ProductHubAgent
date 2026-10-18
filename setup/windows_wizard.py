@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import importlib
 import json
+import os
 import sys
 import threading
 import tkinter as tk
@@ -364,13 +365,22 @@ def run_self_test() -> int:
         except Exception as exc:
             failures.append(f"{module_name}: {type(exc).__name__}")
 
-    if failures:
-        if sys.stderr is not None:
-            print("SELF-TEST FAILED: " + "; ".join(failures), file=sys.stderr)
-        return 1
-    if sys.stdout is not None:
-        print(f"SELF-TEST OK: imported {len(SELF_TEST_MODULES)} required modules")
-    return 0
+    report = (
+        "SELF-TEST FAILED: " + "; ".join(failures)
+        if failures
+        else f"SELF-TEST OK: imported {len(SELF_TEST_MODULES)} required modules"
+    )
+    report_path = os.environ.get("VUA_THO_SETUP_SELF_TEST_REPORT")
+    if report_path:
+        try:
+            from pathlib import Path
+            Path(report_path).write_text(report + "\n", encoding="utf-8")
+        except OSError:
+            pass
+    stream = sys.stderr if failures else sys.stdout
+    if stream is not None:
+        print(report, file=stream)
+    return 1 if failures else 0
 
 
 def main(argv: list[str] | None = None) -> int:
