@@ -3,6 +3,11 @@ on:
   push:
     paths:
       - 'setup/**'
+      - 'product-hub-extension/**'
+      - 'tests/**'
+      - 'README.md'
+      - 'pyproject.toml'
+      - '.github/workflows/daily-qa.yml'
       - 'windows_setup.py'
       - '.github/workflows/setup-wizard.yml'
   workflow_dispatch:
@@ -21,6 +26,7 @@ jobs:
         run: >-
           pyinstaller --noconfirm --clean --onefile --windowed
           --paths .
+          --add-data "product-hub-extension;product-hub-extension"
           --hidden-import setup.async_utils
           --hidden-import setup.github_config
           --hidden-import setup.product_hub_enrollment

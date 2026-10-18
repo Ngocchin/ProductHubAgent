@@ -70,12 +70,13 @@ class ProductHubAgent:
         return (await combo.first.inner_text()).strip() if await combo.count() else ""
 
     async def collect(self) -> list[Card]:
-        if not self.storage_state or not Path(self.storage_state).is_file():
-            raise ProductHubUnavailable("CHƯA THỂ XÁC MINH: thiếu phiên Product Hub đã đăng nhập.")
-        try:
-            from playwright.async_api import async_playwright
-        except ImportError as exc:
-            raise ProductHubUnavailable("Playwright chưa được cài đặt.") from exc
+        # Google SSO rejects automation-controlled browser sign-in. A browser
+        # storage-state file is not an administrator-approved server integration.
+        # Keep cloud collection disabled until a documented read-only API exists.
+        raise ProductHubUnavailable(
+            "BLOCKED: chưa có Product Hub API/integration server-side được quản trị viên cấp quyền và xác minh. "
+            "Dùng Chrome Extension trên máy người dùng để xuất snapshot; không dùng Playwright storage state trên cloud."
+        )
 
         found: dict[str, Card] = {}
         async with async_playwright() as p:

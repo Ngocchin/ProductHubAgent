@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "VuaTho QA Product Hub Reader",
+  "version": "1.0.0",
+  "description": "Read-only export of Product Hub QA cards assigned to Chin.",
+  "permissions": ["activeTab", "downloads", "storage"],
+  "host_permissions": ["https://product-hub.vuatho.com/*"],
+  "action": { "default_popup": "popup.html", "default_title": "VuaTho QA Sync" },
+  "content_scripts": [{
+    "matches": ["https://product-hub.vuatho.com/board*"],
+    "js": ["content.js"],
+    "run_at": "document_idle"
+  }]
+}

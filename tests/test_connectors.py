@@ -4,9 +4,9 @@ from agents.telegram_release import TelegramReleaseAgent, TelegramUnavailable
 
 
 @pytest.mark.asyncio
-async def test_product_hub_fails_closed_without_login_state(tmp_path):
-    agent = ProductHubAgent(storage_state=str(tmp_path / "missing.json"))
-    with pytest.raises(ProductHubUnavailable, match="CHƯA THỂ XÁC MINH"):
+async def test_product_hub_cloud_collection_requires_verified_server_integration(tmp_path):
+    agent = ProductHubAgent(storage_state=str(tmp_path / "legacy-state.json"))
+    with pytest.raises(ProductHubUnavailable, match="BLOCKED.*API/integration server-side"):
         await agent.collect()
 
 

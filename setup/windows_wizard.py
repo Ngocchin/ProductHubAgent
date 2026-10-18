@@ -3,14 +3,20 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
+import shutil
+import subprocess
+import sys
 import threading
 import tkinter as tk
 import webbrowser
-from tkinter import ttk
+from pathlib import Path
+from tkinter import filedialog, messagebox, ttk
 
 from .async_utils import submit_coroutine
 from .github_config import GitHubRepoConfigurator, GitHubSetupError
-from .product_hub_enrollment import PRODUCT_HUB_URL, verify_board_page
+from .product_hub_enrollment import PRODUCT_HUB_URL
+from .product_hub_snapshot import validate_snapshot
 
 CHAT_ID = -1002593712725
 CHAT_TITLE = "[DEV] VuaTho Mobile"
@@ -32,12 +38,12 @@ class SetupWizard:
         self.thread = threading.Thread(target=self._run_loop, daemon=True)
         self.thread.start()
 
-        self.pw = self.browser = self.context = self.product_page = None
+        self.product_snapshot = ""
+        self.product_snapshot_data = None
         self.tg_client = None
         self.phone_code_hash = None
         self.password_needed = False
         self.product_verified = False
-        self.product_storage_state = ""
         self.telegram_verified = False
         self.telegram_session = ""
         self.github_verified = False
@@ -86,10 +92,13 @@ class SetupWizard:
 
         product = ttk.LabelFrame(outer, text="2. Connect Product Hub", padding=10)
         product.pack(fill="x", pady=5)
-        ttk.Label(product, text="Chrome mở trang board. Bạn tự hoàn tất đăng nhập/SSO/2FA nếu cần. Chỉ xác minh và giữ phiên khi thấy cả hai cột QA.", wraplength=790).pack(anchor="w")
+        ttk.Label(product, text="Đăng nhập Google trong Chrome bình thường. Extension chỉ đọc nội dung hiển thị trên product-hub.vuatho.com; không lấy mật khẩu, cookie, token phiên hoặc OTP. Chưa có API Product Hub được quản trị viên xác nhận.", wraplength=790).pack(anchor="w")
         row = ttk.Frame(product); row.pack(fill="x", pady=6)
-        ttk.Button(row, text="Connect Product Hub", command=lambda: self._submit(self.open_product(), self._product_opened)).pack(side="left")
-        ttk.Button(row, text="Test Product Hub", command=lambda: self._submit(self.test_product_hub(), self._product_tested)).pack(side="left", padx=6)
+        ttk.Button(row, text="Install / Open Extension", command=self._install_extension).pack(side="left")
+        ttk.Button(row, text="Connect Product Hub", command=lambda: self._open_chrome(PRODUCT_HUB_URL)).pack(side="left", padx=6)
+        ttk.Button(row, text="Verify JSON", command=self._import_product_snapshot).pack(side="left")
+        ttk.Button(row, text="Sync to GitHub", command=self._sync_product_snapshot).pack(side="left", padx=6)
+        ttk.Label(product, text="Chế độ Extension chỉ đồng bộ khi bạn mở Chrome và bấm Sync. Cloud khi PC tắt đang BLOCKED cho đến khi Product Hub admin cấp và xác minh API/tài khoản tích hợp read-only.", wraplength=790).pack(anchor="w", pady=(2, 0))
 
         telegram = ttk.LabelFrame(outer, text="3. Connect Telegram", padding=10)
         telegram.pack(fill="x", pady=5)
@@ -143,47 +152,6 @@ class SetupWizard:
             self._github_token_memory = self._pending_github_token
         self._pending_github_token = ""
         self.status.set(error or f"GitHub đã xác minh đúng {result}. Token hiện chỉ nằm trong ứng dụng.")
-
-    async def open_product(self):
-        from playwright.async_api import async_playwright
-        if self.pw is None:
-            self.pw = await async_playwright().start()
-        if self.browser is not None:
-            await self.browser.close()
-        self.browser = await self.pw.chromium.launch(channel="chrome", headless=False)
-        self.context = await self.browser.new_context()
-        self.product_page = await self.context.new_page()
-        await self.product_page.goto(PRODUCT_HUB_URL, wait_until="domcontentloaded", timeout=45_000)
-        self.product_verified = False
-        self.product_storage_state = ""
-        return self.product_page.url
-
-    async def test_product_hub(self):
-        if self.product_page is None:
-            raise RuntimeError("Bấm Connect Product Hub trước để mở Chrome.")
-        await self.product_page.wait_for_timeout(500)
-        visible_text = await self.product_page.locator("body").inner_text(timeout=15_000)
-        verify_board_page(self.product_page.url, visible_text)
-        state = await self.context.storage_state()
-        encoded = json.dumps(state, ensure_ascii=False, separators=(",", ":"))
-        if not isinstance(state.get("cookies"), list) or not isinstance(state.get("origins"), list):
-            raise RuntimeError("Browser storage state không đúng cấu trúc Playwright.")
-        if not state["cookies"] and not any(item.get("localStorage") for item in state["origins"]):
-            raise RuntimeError("Board đang hiển thị nhưng storage state trống; chưa lưu phiên để tránh cấu hình giả.")
-        self.product_storage_state = encoded
-        self.product_verified = True
-        return "Đã mở đúng board, thấy Ready for QA và Verifying, storage state hợp lệ trong bộ nhớ."
-
-    def _product_opened(self, result, error):
-        self.status.set(error or "Chrome đã mở Product Hub. Tự đăng nhập nếu cần, quay lại board rồi bấm Test Product Hub.")
-
-    def _product_tested(self, result, error):
-        if error:
-            self.product_verified = False
-            self.product_storage_state = ""
-            self.status.set(error)
-        else:
-            self.status.set(result)
 
     def _send_telegram_code(self):
         values = (self.api_id.get().strip(), self.api_hash.get().strip(), self.phone.get().strip())
@@ -261,14 +229,10 @@ class SetupWizard:
         if not self.github_verified or not token:
             self.status.set("Cần Verify GitHub bằng fine-grained token trước.")
             return
-        if not self.product_verified or not self.product_storage_state:
-            self.status.set("Cần Test Product Hub thành công trước; chưa có phiên nào được lưu.")
-            return
         if not self.telegram_verified or not self.telegram_session:
             self.status.set("Cần Test Telegram thành công và xác minh quyền đọc đúng nhóm trước.")
             return
         secrets = {
-            "PRODUCT_HUB_STORAGE_STATE": self.product_storage_state,
             "TELEGRAM_API_ID": self.api_id.get().strip(),
             "TELEGRAM_API_HASH": self.api_hash.get().strip(),
             "TELEGRAM_SESSION": self.telegram_session,
@@ -287,13 +251,77 @@ class SetupWizard:
         else:
             self.status.set("Đã cấu hình và chỉ xác minh tên: " + ", ".join(result["secrets"] + result["variables"]) + ". Token vẫn chỉ ở bộ nhớ đến khi chạy báo cáo hoặc đóng wizard.")
 
-    def _run_qa_report(self) -> None:
-        if not self._github_token_memory:
-            webbrowser.open(DAILY_WORKFLOW_URL)
-            self.status.set("Đã mở GitHub Actions. Bấm Run workflow để khởi chạy; token một lần không còn trong bộ nhớ.")
+    def _install_extension(self) -> None:
+        source_root = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[1])) / "product-hub-extension"
+        if not source_root.is_dir():
+            self.status.set("Không tìm thấy Chrome Extension đi kèm. Cài lại artifact wizard mới nhất.")
             return
-        self.status.set("Đang yêu cầu GitHub Actions chạy báo cáo QA...")
-        self._submit(asyncio.to_thread(GitHubRepoConfigurator(self._github_token_memory).dispatch_daily_report), self._report_dispatched)
+        destination = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "VuaThoQA" / "product-hub-extension"
+        try:
+            if destination.exists():
+                shutil.rmtree(destination)
+            shutil.copytree(source_root, destination)
+            self._open_chrome("chrome://extensions")
+            os.startfile(str(destination))
+            self.status.set(f"Extension đã được giải nén tại {destination}. Trong Chrome bật Developer mode → Load unpacked → chọn thư mục này.")
+        except OSError as exc:
+            self.status.set(f"Không cài/mở được extension ({type(exc).__name__}).")
+
+    def _open_chrome(self, url: str) -> None:
+        candidates = [shutil.which("chrome"), shutil.which("chrome.exe")]
+        for base in (os.environ.get("PROGRAMFILES"), os.environ.get("PROGRAMFILES(X86)"), os.environ.get("LOCALAPPDATA")):
+            if base:
+                candidates.append(str(Path(base) / "Google" / "Chrome" / "Application" / "chrome.exe"))
+        executable = next((candidate for candidate in candidates if candidate and Path(candidate).is_file()), None)
+        if executable:
+            subprocess.Popen([executable, url], close_fds=True)
+        else:
+            self.status.set("Không tìm thấy Google Chrome. Cài/mở Chrome, rồi bấm Connect Product Hub lại.")
+
+    def _import_product_snapshot(self) -> None:
+        path = filedialog.askopenfilename(title="Chọn JSON đã xuất từ VuaTho QA Extension", filetypes=[("JSON", "*.json")])
+        if not path:
+            return
+        try:
+            raw = Path(path).read_text(encoding="utf-8")
+            data = validate_snapshot(raw)
+        except (OSError, ValueError) as exc:
+            self.product_verified = False
+            self.product_snapshot = ""
+            self.product_snapshot_data = None
+            self.status.set(f"Product Hub snapshot chưa xác minh: {exc}")
+            return
+        self.product_snapshot = raw
+        self.product_snapshot_data = data
+        self.product_verified = True
+        self.status.set(f"Snapshot đúng schema: {len(data['cards'])} card khai báo QA=Chin ở các cột {', '.join(data['columns'])}; thời điểm xuất {data['generated_at']}. Hãy dùng Verify trong Extension để xác minh board trực tiếp.")
+
+    def _sync_product_snapshot(self) -> None:
+        if not self.product_verified or not self.product_snapshot:
+            self.status.set("Bấm Verify JSON và chọn file do Extension xuất trước.")
+            return
+        if not self.github_verified or not self._github_token_memory:
+            self.status.set("Cần Verify GitHub trước khi tải snapshot lên GitHub Secrets.")
+            return
+        count = len(self.product_snapshot_data["cards"])
+        accepted = messagebox.askyesno(
+            "Xác nhận chuyển dữ liệu QA",
+            f"Tải {count} card QA=Chin (bao gồm nội dung card đang hiển thị và liên kết tài liệu cùng miền) lên GitHub Secret được mã hóa của repository private {REPOSITORY}? Dữ liệu sẽ rời máy này. Thao tác này không bật lịch cloud và không xác minh API Product Hub.",
+        )
+        if not accepted:
+            self.status.set("Đã hủy; snapshot chỉ còn trong bộ nhớ của wizard.")
+            return
+        self.status.set("Đang mã hóa và tải snapshot lên GitHub Secret...")
+        self._submit(asyncio.to_thread(GitHubRepoConfigurator(self._github_token_memory).configure, {"PRODUCT_HUB_EXTENSION_SNAPSHOT": self.product_snapshot}, {}), self._product_snapshot_synced)
+
+    def _product_snapshot_synced(self, result, error):
+        if error:
+            self.status.set(error)
+        else:
+            self.status.set("Đã tải snapshot lên GitHub Secret được mã hóa và xác minh tên secret. Báo cáo cloud tự động vẫn BLOCKED; cần Product Hub admin cấp API read-only được hỗ trợ trước khi bật.")
+
+    def _run_qa_report(self) -> None:
+        self.status.set("Báo cáo cloud đang BLOCKED vì chưa có Product Hub API/integration server-side được admin cấp quyền và xác minh. Extension snapshot không bật lịch chạy khi PC tắt.")
 
     def _report_dispatched(self, _result, error):
         self._github_token_memory = ""
@@ -307,7 +335,8 @@ class SetupWizard:
     def close(self) -> None:
         self._github_token_memory = ""
         self._pending_github_token = ""
-        self.product_storage_state = ""
+        self.product_snapshot = ""
+        self.product_snapshot_data = None
         self.telegram_session = ""
         self.github_verified = False
         self.product_verified = False
@@ -323,10 +352,6 @@ class SetupWizard:
             try:
                 if self.tg_client:
                     await self.tg_client.disconnect()
-                if self.browser:
-                    await self.browser.close()
-                if self.pw:
-                    await self.pw.stop()
             finally:
                 self.loop.stop()
         if self.loop.is_running():

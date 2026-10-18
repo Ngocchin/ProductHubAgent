@@ -13,6 +13,7 @@ SELF_TEST_MODULES = (
     "setup.async_utils",
     "setup.github_config",
     "setup.product_hub_enrollment",
+    "setup.product_hub_snapshot",
     "setup.windows_wizard",
     "playwright",
     "playwright.async_api",

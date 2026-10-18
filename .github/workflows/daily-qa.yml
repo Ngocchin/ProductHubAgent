@@ -25,18 +25,8 @@ jobs:
       - run: python -m pip install -e .
       - name: Install Playwright Chromium
         run: python -m playwright install --with-deps chromium
-      - name: Materialize protected Product Hub browser state
-        env:
-          PRODUCT_HUB_STORAGE_STATE: ${{ secrets.PRODUCT_HUB_STORAGE_STATE }}
-        run: |
-          if [ -n "$PRODUCT_HUB_STORAGE_STATE" ]; then
-            mkdir -p playwright/.auth
-            printf '%s' "$PRODUCT_HUB_STORAGE_STATE" > playwright/.auth/state.json
-            echo "PRODUCT_HUB_STORAGE_STATE=playwright/.auth/state.json" >> "$GITHUB_ENV"
-          fi
       - name: Run QA collection and report (retry transient failure)
         env:
-          PRODUCT_HUB_URL: ${{ vars.PRODUCT_HUB_URL }}
           TELEGRAM_API_ID: ${{ secrets.TELEGRAM_API_ID }}
           TELEGRAM_API_HASH: ${{ secrets.TELEGRAM_API_HASH }}
           TELEGRAM_SESSION: ${{ secrets.TELEGRAM_SESSION }}
