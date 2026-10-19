@@ -1,4 +1,4 @@
-# DAILY QA REPORT — 18/10/2026
+# DAILY QA REPORT — 19/10/2026
 
 > Thu thập theo chế độ chỉ đọc. Checklist là đề xuất; chưa có test nào được đánh dấu PASS.
 
@@ -15,5 +15,5 @@
 ## E. Test plan hôm nay
 
 ## F. Blocker và thông tin cần xác nhận
-- CHƯA THỂ XÁC MINH: thiếu phiên Product Hub đã đăng nhập.
+- BLOCKED: chưa có Product Hub API/integration server-side được quản trị viên cấp quyền và xác minh. Dùng Chrome Extension trên máy người dùng để xuất snapshot; không dùng Playwright storage state trên cloud.
 - CHƯA THỂ XÁC MINH: cần MTProto credentials và TELEGRAM_CHAT_ID đã xác minh.

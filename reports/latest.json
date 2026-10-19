@@ -1,16 +1,16 @@
 {
-  "date": "2026-10-18",
+  "date": "2026-10-19",
   "cards": [],
   "releases": [],
   "analyses": {},
   "blockers": [
-    "CHƯA THỂ XÁC MINH: thiếu phiên Product Hub đã đăng nhập.",
+    "BLOCKED: chưa có Product Hub API/integration server-side được quản trị viên cấp quyền và xác minh. Dùng Chrome Extension trên máy người dùng để xuất snapshot; không dùng Playwright storage state trên cloud.",
     "CHƯA THỂ XÁC MINH: cần MTProto credentials và TELEGRAM_CHAT_ID đã xác minh."
   ],
   "changes": {
     "comparison": "skipped",
     "reason": "one or more source integrations are unavailable"
   },
-  "generated_at": "2026-10-18T04:51:31.919277+00:00",
+  "generated_at": "2026-10-19T04:59:54.284915+00:00",
   "processed_release_ids": []
 }
