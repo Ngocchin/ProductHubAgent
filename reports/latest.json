@@ -1,5 +1,5 @@
 {
-  "date": "2026-11-07",
+  "date": "2026-11-08",
   "cards": [],
   "releases": [],
   "analyses": {},
@@ -11,6 +11,6 @@
     "comparison": "skipped",
     "reason": "one or more source integrations are unavailable"
   },
-  "generated_at": "2026-11-07T06:19:48.264800+00:00",
+  "generated_at": "2026-11-08T06:26:02.599588+00:00",
   "processed_release_ids": []
 }
