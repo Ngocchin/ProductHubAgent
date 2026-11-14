@@ -1,4 +1,4 @@
-# DAILY QA REPORT — 13/11/2026
+# DAILY QA REPORT — 14/11/2026
 
 > Thu thập theo chế độ chỉ đọc. Checklist là đề xuất; chưa có test nào được đánh dấu PASS.
 
